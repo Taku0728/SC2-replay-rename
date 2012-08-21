@@ -12,7 +12,7 @@ from sc2reader.exceptions import ReadError
 def doFile(filename, arguments):
     '''Prints summary information about SC2 replay file'''
     try:
-        replay = sc2reader.load_replay(filename, debug=True)
+        replay = sc2reader.load_replay(filename, debug=True, load_level=2)
     except ReadError as e:
         raise
         return
