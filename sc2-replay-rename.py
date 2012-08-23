@@ -9,7 +9,7 @@ import sys
 import time
 
 # 2012-03-29 23-07-34 PvT batrick (P) vs Fuzzzy (T) Ohana LE.SC2Replay
-DEFAULT_FORMAT = "/date/ /time/ /matchup/ /ateam/ vs /bteam/ /map/.SC2Replay"
+DEFAULT_FORMAT = "/date/ /time/ /map/ /matchup/ /teams/.SC2Replay"
 
 parser = argparse.ArgumentParser(description = "Format Starcraft II Replay File Name.")
 parser.add_argument("-f", "--format", nargs = 1, default = DEFAULT_FORMAT, help = "format for the filename", dest = "format")
@@ -18,15 +18,26 @@ parser.add_argument("-f", "--format", nargs = 1, default = DEFAULT_FORMAT, help 
 parser.add_argument("files", nargs = "+", help = "files to rename", metavar = "file")
 args = parser.parse_args()
 
+def formatteam (replay):
+    matchup = []
+    names = []
+    teams = [[player for player in team.players] for team in replay.teams]
+    for team in teams:
+        team.sort(lambda a, b: cmp(a.name.lower(), b.name.lower()))
+        names.append((", ").join(["%s (%s)" % (player.name, player.pick_race[0]) for player in team]))
+        makeup = [player.pick_race[0] for player in team]
+        matchup.append(("").join(makeup))
+    matchup = ("v").join(matchup)
+    return {"matchup": matchup, "teams": names}
+
 # TODO adjust date to account for DST
 options = {
-  "/ateam/": lambda (replay): "ateam",
-  "/bteam/": lambda (replay): "bteam",
   "/category/": lambda (replay): replay.category,
   "/date/": lambda (replay): replay.date.strftime("%Y-%m-%d"),
   "/length/": lambda (replay): "0", #replay.length,
   "/map/": lambda (replay): replay.map_name,
-  "/matchup/": lambda (replay): replay.type,
+  "/matchup/": lambda (replay): formatteam(replay)["matchup"],
+  "/teams/": lambda (replay): (" vs ").join(formatteam(replay)["teams"]),
   "/time/": lambda (replay): replay.date.strftime("%H-%M-%S"),
   "/type/": lambda (replay): replay.type,
   "/utcdate/": lambda (replay): replay.date.strftime("%Y-%m-%d"),
@@ -41,10 +52,13 @@ def replay_filename (replay):
     return pattern.sub(replace, args.format)
 
 for f in args.files:
-    replay = sc2reader.load_replay(f)
-    nf = replay_filename(replay)
-    if os.access(nf, os.F_OK):
-        print("cannot rename replay `%s' to `%s': destination exists" % (f, nf))
-        sys.exit(1);
-    sys.stderr.write("`%s' -> `%s'\n" % (f, nf));
-    # os.rename(f, replay_filename(replay))
+    try:
+        replay = sc2reader.load_replay(f)
+        nf = replay_filename(replay)
+        if os.access(nf, os.F_OK):
+            print("cannot rename replay `%s' to `%s': destination exists" % (f, nf))
+            sys.exit(1);
+        sys.stderr.write("`%s' -> `%s'\n" % (f, nf));
+        # os.rename(f, replay_filename(replay))
+    except sc2reader.exceptions.ReadError as e:
+        sys.stderr.write("could not load %s: %s\n" % (f, e))
